@@ -21,18 +21,23 @@ float roll  = 0.0F;
 float yaw   = 0.0F;
 
 // For the exponential moving average 
-static float alpha = 0.97;
+static float alpha = 0.82;
 static float acc_x_out_exp = 0;
 static float acc_y_out_exp = 0;
 static float acc_z_out_exp = 0;
 
 // For the step count
+int step = 0;
+float total = 0;
+int count = 0;
+float avg = 1.1;
+float width = avg / 10;
+boolean state = false;
+boolean old_state = false;
 
 // Connecting to the internet
-//const char* ssid = "UPC1471152"; 
-//const char* password = "h8bAzcmsmzuj"; 
-const char* ssid = "Revregi";
-const char* password = "bacooon22";
+const char* ssid = "Tupturup"; 
+const char* password = "verysecuredpassword"; 
 
 // Creating the server
 WebServer server(80);
@@ -141,7 +146,7 @@ function sendDataRate() {
   var dataRate = document.getElementById("dataRateSlider").value;
   webSocket.send(dataRate);
   //dataRate = 1.0 / dataRate;
-  document.getElementById("dataRateLabel").innerHTML = "Rate: " + dataRate + " várakozás/1 másodperc"; //.toFixed(2); // + "HZ";
+  document.getElementById("dataRateLabel").innerHTML = "Rate: " + dataRate + "Hz; //.toFixed(2); // + "HZ";
 }
 </script>
 </body>
@@ -152,6 +157,7 @@ function sendDataRate() {
 // SETUP
 void setup() {
   m5.begin();
+  M5.Lcd.setRotation(3);
   M5.IMU.Init();
   Serial.begin(115200);
   WiFi.mode(WIFI_STA);
@@ -174,7 +180,7 @@ void setup() {
   }
 
   //server.on("/", handleRoot);
-
+  
   server.on("/inline", []() {
     server.send(200, "text/plain", "this works as well");
   });
@@ -194,7 +200,6 @@ void setup() {
 
   timer.attach(5, getData);
 
-  // Step count
 }
 
 // LOOP
@@ -225,14 +230,55 @@ void loop() {
   float acc_z = accZ;
   acc_z_out_exp = alpha * acc_z_out_exp + (1 - alpha) * acc_z;
 
+  
+  float accel = sqrt(acc_x_out_exp*acc_x_out_exp +
+                     acc_y_out_exp*acc_y_out_exp +
+                     acc_z_out_exp/acc_z_out_exp);
+
   Serial.printf("%lf %lf\n\r", acc_x, acc_x_out_exp);
   
   //M5.Lcd.fillScreen(GREEN);
   M5.Lcd.setCursor(0, 30);
   M5.Lcd.setTextSize(2);
   //M5.Lcd.println("Henlo:");
-  M5.Lcd.println(accX);
-  M5.Lcd.println(acc_x_out_exp);
+
+  // This for the demo to show the original signal and the filtered
+  // M5.Lcd.println(accX);
+  // M5.Lcd.println(acc_x_out_exp);
+
+// Step count things
+ // Calibration for average acceleration.
+  if (count < 100) {
+    total += accel;
+    count += 1;
+  } else {
+    avg = total / count;
+    width = avg / 10;
+    total = avg;
+    count = 1;
+  }
+
+  // When current accel is ...
+  if (accel > avg + width) {
+    state = true;
+  } else if (accel < avg - width) {
+    state = false;
+  }
+
+  // Count up step.
+  if (!old_state && state) {
+    step += 1;
+
+    // Display step
+    M5.Lcd.setCursor(0, 0);
+    M5.Lcd.setTextSize(4);
+    M5.Lcd.printf("Step:\n");
+    M5.Lcd.printf("%5d\n", step);
+  }
+    old_state = state;
+
+  delay(50);
+  
 }
 
 void getData(){
