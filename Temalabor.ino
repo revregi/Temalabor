@@ -31,7 +31,7 @@ int step = 0;
 float total = 0;
 int count = 0;
 float avg = 1.1;
-float width = avg / 10;
+float width = 0;
 boolean state = false;
 boolean old_state = false;
 
